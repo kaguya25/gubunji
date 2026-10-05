@@ -20,6 +20,21 @@ export const defaultAdapter = {
 };
 export type Adapter = typeof defaultAdapter;
 const text = (el: Element | null) => el?.textContent?.trim().slice(0, 300) ?? '';
+export function displayed(el: Element): boolean {
+  for (let node: Element | null = el; node; node = node.parentElement) {
+    if (node.hasAttribute('hidden') || node.getAttribute('aria-hidden') === 'true') return false;
+    const style = node.ownerDocument.defaultView?.getComputedStyle(node);
+    if (style?.display === 'none' || style?.visibility === 'hidden') return false;
+  }
+  return true;
+}
+export function resultRoot(document: Document, a: Adapter) {
+  return (
+    [...document.querySelectorAll(a.resultRoot)].find(displayed) ??
+    [...document.querySelectorAll(a.list)].find(displayed)?.parentElement ??
+    null
+  );
+}
 export function routeInfo(hash: string) {
   const multi = hash.match(/^#result_multi\/(?:detail\/)?(\d+)(?:\/|$)/);
   const coop = hash.match(/^#coopraid\/record\/detail\/(\d+)(?:\/|$)/);
@@ -28,6 +43,8 @@ export function routeInfo(hash: string) {
   return null;
 }
 export function validateAdapter(a: Adapter, document: Document) {
+  for (const key of ['resultRoot', 'list', 'item', 'name', 'count', 'quest'] as const)
+    if (!a[key]?.trim()) throw new Error(`${key} のセレクターを入力してください`);
   for (const [key, value] of Object.entries(a))
     if (typeof value === 'string' && value) {
       if (value.length > 300) throw new Error(`${key} のセレクターが長すぎます`);
@@ -48,10 +65,9 @@ export function capture(
   const route = routeInfo(hash);
   if (!route) return null;
   validateAdapter(a, document);
-  const root =
-    document.querySelector(a.resultRoot) ?? document.querySelector(a.list)?.parentElement;
+  const root = resultRoot(document, a);
   if (!root) return null;
-  const lists = [...root.querySelectorAll(a.list)];
+  const lists = [...root.querySelectorAll(a.list)].filter(displayed);
   if (root.matches(a.list)) lists.unshift(root);
   const issues = new Set<string>();
   if (!a.verified) issues.add('画面の読み取り設定が未検証です');
@@ -59,6 +75,7 @@ export function capture(
   const drops: Capture['drops'] = [];
   lists.forEach((list, section) => {
     for (const item of list.querySelectorAll(a.item)) {
+      if (!displayed(item)) continue;
       if (item.parentElement?.closest(a.item) && list.contains(item.parentElement.closest(a.item)))
         continue;
       const img = item.querySelector('img');
@@ -86,7 +103,7 @@ export function capture(
     selector ? parseCount(text(root.querySelector(selector))) : null;
   const actors: Capture['damage']['actors'] = [];
   if (a.actor)
-    for (const [slot, el] of [...root.querySelectorAll(a.actor)].entries()) {
+    for (const [slot, el] of [...root.querySelectorAll(a.actor)].filter(displayed).entries()) {
       const v = (selector: string) =>
         selector ? parseCount(text(el.querySelector(selector))) : null;
       const unit = el.getAttribute('data-character-id') ?? el.getAttribute('data-unit-id');
@@ -126,8 +143,7 @@ export function capture(
 }
 export function diagnostics(document: Document, hash: string, a: Adapter) {
   validateAdapter(a, document);
-  const root =
-    document.querySelector(a.resultRoot) ?? document.querySelector(a.list)?.parentElement;
+  const root = resultRoot(document, a);
   // Never export page HTML, cookies, chat text, URLs with tokens, or player names.
   return {
     schemaVersion: 1,

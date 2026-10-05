@@ -18,6 +18,47 @@ const observe = (c = demoCaptures()[0], id = 'one') => ({
   fingerprint: id,
 });
 describe('display parser', () => {
+  it('ignores hidden stale results and keeps same item ids in different kinds separate', () => {
+    const w = new Window();
+    w.document.body.innerHTML =
+      '<div class="prt-result" hidden><div class="prt-item-list"><div data-key="stale"><span class="prt-article-count">99</span></div></div></div><div class="prt-result"><div class="prt-item-list"><div data-key="a" data-item-kind="weapon" data-item-id="1"><span class="prt-article-count">1</span></div><div data-key="b" data-item-kind="treasure" data-item-id="1"><span class="prt-article-count">2</span></div><div data-key="hidden" style="display:none"><span class="prt-article-count">99</span></div></div></div>';
+    const c = capture(w.document as unknown as Document, '#result_multi/123', 'host', 'view')!;
+    expect(c.drops.map((d) => d.key)).toEqual(['weapon:1', 'treasure:1']);
+  });
+  it('reads configured character totals and leaves absent breakdown unknown', () => {
+    const w = new Window();
+    w.document.body.innerHTML =
+      '<div class="prt-result"><p class="total">1,000</p><p class="turns">5</p><div class="actor" data-character-id="100"><span class="name">キャラ</span><span class="damage">500</span><span class="ougi">0</span></div></div>';
+    const c = capture(
+      w.document as unknown as Document,
+      '#result_multi/detail/123/1',
+      'host',
+      'view',
+      {
+        ...defaultAdapter,
+        total: '.total',
+        turns: '.turns',
+        actor: '.actor',
+        actorName: '.name',
+        actorTotal: '.damage',
+        actorOugi: '.ougi',
+      },
+    )!;
+    expect(c.damage).toMatchObject({
+      total: 1000,
+      turns: 5,
+      actors: [{ key: 'unit:100', total: 500, normal: null, ougi: 0 }],
+    });
+  });
+  it('rejects an empty required selector before saving settings', () => {
+    const w = new Window();
+    expect(() =>
+      capture(w.document as unknown as Document, '#result', 'host', 'id', {
+        ...defaultAdapter,
+        item: '',
+      }),
+    ).toThrow('item');
+  });
   it('handles counts without inventing missing values', () => {
     expect(parseCount('×１,２３４')).toBe(1234);
     for (const s of ['', '1.5', '12万', 'x?', '-1', '9007199254740992'])

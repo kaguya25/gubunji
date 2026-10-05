@@ -1,4 +1,11 @@
-import { capture, diagnostics, defaultAdapter, routeInfo, type Adapter } from './capture';
+import {
+  capture,
+  diagnostics,
+  defaultAdapter,
+  routeInfo,
+  resultRoot,
+  type Adapter,
+} from './capture';
 import { fingerprint } from './core';
 let adapter: Adapter = defaultAdapter,
   enabled = true,
@@ -33,12 +40,10 @@ function observe() {
   observer?.disconnect();
   probe?.disconnect();
   if (!enabled || !routeInfo(location.hash)) return;
-  const root =
-    document.querySelector(adapter.resultRoot) ??
-    document.querySelector(adapter.list)?.parentElement;
+  const root = resultRoot(document, adapter);
   if (root) {
     observer = new MutationObserver(() => {
-      if (!root.isConnected) observe();
+      if (!root.isConnected || resultRoot(document, adapter) !== root) observe();
       else schedule();
     });
     observer.observe(root, {
@@ -46,15 +51,21 @@ function observe() {
       subtree: true,
       characterData: true,
       attributes: true,
-      attributeFilter: ['data-key', 'data-item-id', 'data-item-kind', 'class', 'style'],
+      attributeFilter: [
+        'data-key',
+        'data-item-id',
+        'data-item-kind',
+        'class',
+        'style',
+        'hidden',
+        'aria-hidden',
+      ],
     });
     schedule();
   }
   // Only watch child insertion while locating/replacing the result region. No body text scan.
   probe = new MutationObserver(() => {
-    const next =
-      document.querySelector(adapter.resultRoot) ??
-      document.querySelector(adapter.list)?.parentElement;
+    const next = resultRoot(document, adapter);
     if (next && next !== root) observe();
   });
   probe.observe(document.body, { childList: true, subtree: true });
