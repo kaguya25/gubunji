@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "ぐぶんじ — ドロップと火力の記録",
+  "version": "0.1.0",
+  "description": "開いたグラブルのリザルトを記録し、ドロップとキャラ別火力を確認。Supabaseへ同期できます。",
+  "minimum_chrome_version": "120",
+  "permissions": ["storage", "alarms"],
+  "host_permissions": ["https://game.granbluefantasy.jp/*", "https://gbf.game.mbga.jp/*"],
+  "optional_host_permissions": ["https://*.supabase.co/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_popup": "popup.html", "default_title": "ぐぶんじ" },
+  "options_page": "index.html",
+  "content_scripts": [
+    {
+      "matches": ["https://game.granbluefantasy.jp/*", "https://gbf.game.mbga.jp/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'self'" }
+}
